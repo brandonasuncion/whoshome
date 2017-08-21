@@ -24,7 +24,7 @@ USERS = {
 
 ### END CONFIG ###
 
-safeInt = lambda i: int(i) if i.strip() else 0
+safeInt = lambda i: int(float(i)) if i.strip() else 0
 
 def getActiveClients():
     s = requests.Session()
