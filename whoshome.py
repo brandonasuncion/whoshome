@@ -12,7 +12,7 @@ from collections import defaultdict
 
 ### START CONFIG ###
 
-USERNAME = "admin"
+USERNAME = "username"
 PASSWORD = "password"
 GATEWAY = "192.168.1.1"
 
@@ -24,50 +24,59 @@ USERS = {
 
 ### END CONFIG ###
 
-s = requests.Session()
+safeInt = lambda i: int(i) if i.strip() else 0
 
-loginData = {
-    'group_id': '',
-    'action_mode': '',
-    'action_script': '',
-    'action_wait': '5',
-    'current_page': 'Main_Login.asp',
-    'next_page': 'index.asp',
-    'login_authorization': b64encode("{}:{}".format(USERNAME, PASSWORD).encode())
-}
+def getActiveClients():
+    s = requests.Session()
 
-reqHeaders = {'Referer': "http://{}/".format(GATEWAY)}
+    loginData = {
+        'group_id': '',
+        'action_mode': '',
+        'action_script': '',
+        'action_wait': '5',
+        'current_page': 'Main_Login.asp',
+        'next_page': 'index.asp',
+        'login_authorization': b64encode("{}:{}".format(USERNAME, PASSWORD).encode())
+    }
 
-# Login to router
-s.post("http://{}/login.cgi".format(GATEWAY), data=loginData, headers=reqHeaders, verify=False)
+    reqHeaders = {'Referer': "http://{}/".format(GATEWAY)}
 
-# Get client data
-clientData = s.get("http://{}/update_clients.asp".format(GATEWAY), headers=reqHeaders, verify=False).text
+    # Login to router
+    s.post("http://{}/login.cgi".format(GATEWAY), data=loginData, headers=reqHeaders, verify=False)
 
-# Logout
-s.get("http://{}/Logout.asp".format(GATEWAY), headers=reqHeaders, verify=False)
+    # Get client data
+    clientData = s.get("http://{}/update_clients.asp".format(GATEWAY), headers=reqHeaders, verify=False).text
+
+    # Logout
+    s.get("http://{}/Logout.asp".format(GATEWAY), headers=reqHeaders, verify=False)
 
 
-activeClients = defaultdict(lambda :{})
-clientLists = re.findall(r"(?:g:(\s){1,})(\[(.)*?],\n)", clientData)
-for cList in clientLists:
+    activeClients = defaultdict(lambda :{})
+    clientLists = re.findall(r"(?:g:(\s){1,})(\[(.)*?],\n)", clientData)
+    for cList in clientLists:
 
-    clientData = json.loads(cList[1].strip()[:-1])
-    for c in clientData:
-        device = c[0]
+        clientData = json.loads(cList[1].strip()[:-1])
+        for c in clientData:
+            device = c[0]
 
-        if ':' in c[3]:
-            safeInt = lambda i: int(i) if i.strip() else 0
+            if ':' in c[3]:
+                activeClients[device]['Tx'] = safeInt(c[1])
+                activeClients[device]['Rx'] = safeInt(c[2])
+                activeClients[device]['accessTime'] = c[3]
+                
+            else:
+                activeClients[device]['isWireless'] = c[1] == 'Yes'
+                activeClients[device]['unknown'] = c[2] == 'Yes'
+                activeClients[device]['RSSI'] = c[3]
 
-            activeClients[device]['Tx'] = safeInt(c[1])
-            activeClients[device]['Rx'] = safeInt(c[2])
-            activeClients[device]['accessTime'] = c[3]
-            
-        else:
-            activeClients[device]['isWireless'] = c[1] == 'Yes'
-            activeClients[device]['unknown'] = c[2] == 'Yes'
-            activeClients[device]['RSSI'] = c[3]
+    return activeClients
 
-for user, MACs in USERS.items():
-    if any(device in activeClients for device in MACs):
+def activeUsers():
+    activeClients = getActiveClients()
+    for user, MACs in USERS.items():
+        if any(device in activeClients for device in activeClients):
+            yield user
+
+if __name__ == '__main__':
+    for user in activeUsers():
         print(user)
