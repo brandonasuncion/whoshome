@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 '''
 Who's Home
 by Brandon Asuncion <me@brandonasuncion.tech>
